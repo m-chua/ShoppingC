@@ -1,0 +1,2747 @@
+/*********************************************************************************************************
+This is to certify that this project is our own work, based on our personal
+efforts in studying and applying the concepts learned. We have constructed the
+functions and their respective algorithms and corresponding code by ourselves. The
+program was run, tested, and debugged by our own efforts. We further certify that
+We have not copied in part or whole or otherwise plagiarized the work of other
+students and/or persons.
+ Aldwin Renzel P. DImaculangan, DLSU ID# 12205761
+ Micole Keesha A. Chua, DLSU ID# 12205877
+*********************************************************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define USERCOUNT 100
+
+typedef char String20[21];
+typedef char String30[31];
+
+struct Item // structure of an item's details
+{
+  int nItemID;
+  String20 cItemName;
+  char cCategory[16];
+  String30 cItemDesc;
+  int nQuantity;
+  float fPrice;
+  int nSellerID;
+};
+
+struct User // structure of the user's details
+{
+  struct Item ItemCount[20];
+  int items;
+  int nID;
+  char cPassword[11];
+  String30 cAddress;
+  char cContact[12];
+  String20 cName;
+  struct Item CartCount[10];
+  int carts;
+};
+
+struct Date //structure of the date of transaction
+{ 
+  int nMonth;
+  int nDay;
+  int nYear;
+};
+
+struct Transaction //structure of the receipt/transaction
+{
+  struct Date nDate;
+  struct Item sItems[5];
+  int nItems;
+  int nBuyerID;
+};
+
+//Function prototypes for menus
+void adminMenu(struct User UserDetails[],
+               int usercount); 
+void userMenu(struct User UserDetails[], int user, int count);
+void sellMenu(struct User UserDetails[], int user, int count);
+void buyMenu(struct User UserDetails[], int user, int count);
+
+/*
+  Contributed by: Dimaculangan, Renzel
+	displayEdge displays the edges of tables. It also acts as a divider between functions and menus.
+	Precondition: size is 126 spaces long (20 spaces for data, 6 for dividers)
+	@param none
+	@returns nothing due to the function being a void
+	
+*/
+void 
+displayEdge()
+{
+  printf("+--------------------+--------------------+--------------------+-----"
+         "---------------+--------------------+\n");
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+
+  getString allows the input of strings with spaces between characters.
+  Precondition: the length of *str varies depending on when the function is called
+  @param *str is the location where the string will be stored
+  @returns nothing  due to the function being a void
+*/
+void 
+getString(char *str)
+{
+  int i;
+  char ch;
+
+  i = 0;
+  do 
+  {
+    scanf("%c", &ch); //scans one character at a time
+    if (ch != '\n') 
+    {
+      str[i] = ch;
+      i++;
+    }
+  } while (ch != '\n'); //keep getting inputs until user hits the Enter key
+  str[i] = '\0'; //assigns null to the last index to turn into a string
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  
+  makeUserTextFile writes and updates the text file containing the list of users
+  Precondition: Number of users is greater than 0
+  @param *UserTag is the array of structured users
+  @param i is the total number of users
+  @returns nothing due to the function being a void
+*/
+void 
+makeUserTextFile(struct User *UserTag, int i) 
+{
+  FILE *fp;
+  int ctr;
+  if ((fp = fopen("Users.txt", "w")) != NULL) 
+  {
+    for (ctr = 0; ctr < i; ctr++) //loop to print all users
+    {
+      fprintf(fp, "%d %s\n%s\n%s\n%s\n\n", UserTag[ctr].nID,
+              UserTag[ctr].cPassword, UserTag[ctr].cName, UserTag[ctr].cAddress,
+              UserTag[ctr].cContact);
+    }
+    fclose(fp);
+  } else
+    printf("Error opening file!");
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+
+  initializeUserFile reads Users.txt and places its contents into the array of structured users as well as gets the number of users
+  Precondition: UserTag[] can fit a maximum of 100 users
+  @param UserTag[] is the array of structured users, where the contents of Users.txt will be stored
+  @returns int the number of total users in the file
+*/
+int 
+initializeUserFile(struct User UserTag[]) 
+{
+  FILE *fp;
+  int usercount = 0;
+
+  if ((fp = fopen("Users.txt", "r")) != NULL) 
+  {
+    while ((fscanf(fp, "%d %[^\n]\n%[^\n]\n%[^\n]\n%[^\n]\n\n",
+                   &UserTag[usercount].nID, UserTag[usercount].cPassword,
+                   UserTag[usercount].cName, UserTag[usercount].cAddress,
+                   UserTag[usercount].cContact)) != EOF) //reads inputs until the end of file marker
+      usercount++; //updates number of users
+
+    fclose(fp);
+  }
+  return usercount; //total number of users
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+
+  initializeItemFile reads Items.txt and assigns the items to the users who sell them. It also gets the total number of items being sold.
+  Precondition: The number of users is greater than 0
+  @param UserTag[] = array of structured users
+  @param usercount = total number of users
+  @returns int (total number of items)
+*/
+int 
+initializeItemFile(struct User UserTag[], int usercount) 
+{
+  FILE *fp;
+
+  //variables to temporarily store the content of each item structure
+  int items;
+  int totalitems;
+  int check;
+  int i;
+  int itemID, userID;
+  String20 ItemName;
+  char Category[16];
+  String30 Description;
+  int quantity;
+  float price;
+
+  if ((fp = fopen("Items.txt", "r")) != NULL) 
+  {
+    if (fp != NULL) 
+    {
+      while ((fscanf(fp, "%d %d\n%[^\n]\n%[^\n]\n%[^\n]\n%d %f\n\n", &itemID,
+                     &userID, ItemName, Category, Description, &quantity,
+                     &price)) != EOF) 
+      {
+        i = 0; //user index
+        check = 0; //to compare user ID with the user ID of each member of the array
+        while (i < usercount && check == 0) //loop until total number of users is reached and matching user IDs is found
+        {
+          if (UserTag[i].nID == userID) //scanned user ID and a user ID in the array is found
+          {
+            items = UserTag[i].items;
+            UserTag[i].ItemCount[items].nItemID = itemID;
+            UserTag[i].ItemCount[items].nSellerID = userID;
+
+            strcpy(UserTag[i].ItemCount[items].cItemName, ItemName);
+            strcpy(UserTag[i].ItemCount[items].cCategory, Category);
+            strcpy(UserTag[i].ItemCount[items].cItemDesc, Description);
+
+            UserTag[i].ItemCount[items].nQuantity = quantity;
+            UserTag[i].ItemCount[items].fPrice = price;
+
+            UserTag[i].items++; //increments the number of items a user has
+            totalitems++; //total number of items across every user
+            check = 1;//stops the loop when matching userID is found
+          } 
+          else
+            i++; //go to next user to compare user ID
+        }
+      }
+    }
+    fclose(fp);
+  }
+
+  return totalitems;
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+
+  UserIDNumCheck performs a linear search of the array of users and checks if a certain ID number already exists to avoid duplicate ID numbers among users.
+  Precondition: Number of users and key are greater than 0;
+  @param UserDetails[] is the array of structured users
+  @param key is the ID number to be searched for
+  @param usercount is the total number of users
+  @returns int, the index where the ID number is found
+*/
+int 
+UserIDNumCheck(struct User UserDetails[], int key, int usercount) 
+{
+  int i, check = -1;
+
+  for (i = 0; i < usercount; i++) //loop through all users
+  {
+    if (UserDetails[i].nID == key) //if user ID already exists, return index
+      check = i;
+  }
+
+  return check;
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  RegisterUser adds a new user of the program and stores it in the array of structured users
+  Preconditions: Number of users is greater than 0
+  @param UserDetails[] is the array of structured users
+  @param usercount is the total number of users
+  @returns nothing due to the function being a void
+*/
+void 
+RegisterUser(struct User UserDetails[], int usercount) 
+{
+  int nChoice = 0;
+  int IDNum;
+
+  char cEnter;
+
+  printf("Please input the following:\n");
+  printf("User ID: ");
+  do 
+  {
+    scanf("%d%c", &IDNum, &cEnter);
+
+    if (IDNum >= 0) 
+    {
+      if ((UserIDNumCheck(UserDetails, IDNum, usercount)) != -1)
+        printf("User ID already exists, please re-input: ");
+      else
+        UserDetails[usercount].nID = IDNum;
+
+    } else
+      printf("Invalid input, please re-input: ");
+  } while ((UserIDNumCheck(UserDetails, IDNum, usercount)) != -1);
+
+  printf("Password: ");
+  do 
+  {
+    getString(UserDetails[usercount].cPassword);
+    if (strlen(UserDetails[usercount].cPassword) > 10)
+      printf("Password can only be a maximum of 10 characters, input again: ");
+    else if (strlen(UserDetails[usercount].cPassword) == 0)
+      printf("Please input a password: ");
+  } while (strlen(UserDetails[usercount].cPassword) == 0 ||
+           strlen(UserDetails[usercount].cPassword) > 10);
+
+  printf("Address: ");
+  do 
+  {
+    getString(UserDetails[usercount].cAddress);
+    if (strlen(UserDetails[usercount].cAddress) > 30)
+      printf("Address can only be a maximum of 30 characters, input again: ");
+    else if (strlen(UserDetails[usercount].cAddress) == 0)
+      printf("Please input an address: ");
+  } while (strlen(UserDetails[usercount].cAddress) == 0 ||
+           strlen(UserDetails[usercount].cAddress) > 30);
+
+  printf("Contact Number: ");
+  do 
+  {
+    getString(UserDetails[usercount].cContact);
+    if (strlen(UserDetails[usercount].cContact) > 11)
+      printf("Contact Number can only be a maximum of 11 characters, input "
+             "again: ");
+    else if (strlen(UserDetails[usercount].cContact) == 0)
+      printf("Please input a contact number: ");
+  } while (strlen(UserDetails[usercount].cContact) == 0 ||
+           strlen(UserDetails[usercount].cContact) > 11);
+
+  printf("Name: ");
+  do 
+  {
+    getString(UserDetails[usercount].cName);
+    if (strlen(UserDetails[usercount].cName) > 20)
+      printf("Name can only be a maximum of 20 characters, input again:\n");
+    else if(strlen(UserDetails[usercount].cName) == 0)
+        printf("Please input a name: ");
+  } while (strlen(UserDetails[usercount].cName) == 0||
+           strlen(UserDetails[usercount].cName) > 20);
+
+  printf("Press 1 to go back to the main menu: ");
+  while (nChoice != 1) 
+  {
+    scanf("%d", &nChoice);
+    if (nChoice == 1)
+    {
+      // system("cls");
+      displayEdge();
+    }
+  }
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  makeItemTextFile writes and updates Items.txt using the contents of UserDetails[].ItemCount[].
+  Precondition: number of users is greater than 0. Only users with at least 1 item will be included in Items.txt
+  @param UserDetails[] is the array of structured users
+  @param users is the total number of users
+  @returns nothing
+*/
+void 
+makeItemTextFile(struct User UserDetails[], int users) 
+{
+  FILE *fp;
+  int i, j;
+  if ((fp = fopen("Items.txt", "w")) != NULL) 
+  {
+    for (i = 0; i < users; i++) 
+    {
+      for (j = 0; j < UserDetails[i].items; j++)
+        fprintf(fp, "%d %d\n%s\n%s\n%s\n%d %.2f\n\n",
+                UserDetails[i].ItemCount[j].nItemID,
+                UserDetails[i].ItemCount[j].nSellerID,
+                UserDetails[i].ItemCount[j].cItemName,
+                UserDetails[i].ItemCount[j].cCategory,
+                UserDetails[i].ItemCount[j].cItemDesc,
+                UserDetails[i].ItemCount[j].nQuantity,
+                UserDetails[i].ItemCount[j].fPrice);
+    }
+    fclose(fp);
+  } else
+    printf("Error opening file!");
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  ItemIDNumCheck goes through the list of items and checks if an inputted ID number already exists to avoid duplicate item ID numbers.
+  Precondition: number of users is greater than 0, key is greater than or equal to 0
+  @param UserDetails[] is the array of structured users
+  @param key is the ID Number to search for
+  @param users is the total number of users
+  @returns int, the index of the user who has an item using the item ID number int key
+*/
+int 
+ItemIDNumCheck(struct User UserDetails[], int key, int users) 
+{
+  int i, j, check = -1;
+
+  for (i = 0; i < users; i++) 
+  {
+    for (j = 0; j < UserDetails[i].items; j++)
+      if (UserDetails[i].ItemCount[j].nItemID == key)
+        check = i;
+  }
+
+  return check;
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  AddItem adds an item to a user's array of structured items.
+  Precondition: the index of the new item is less than 20; Total number of users is greater than 0
+  @param UserDetails[] is the array of structured users
+  @param user is the index of a specific user
+  @param itemnum is the index of the item to be added item on the array
+  @param usercount is the total number of users
+  @returns nothing due to the function being a void
+*/
+void 
+AddItem(struct User UserDetails[], int user, int usercount) 
+{
+  int nChoice = 0;
+  int itemIDNum;
+  char cEnter;
+
+  int itemNum = UserDetails[user].items;
+
+  UserDetails[user].ItemCount[itemNum].nSellerID = UserDetails[user].nID;
+  printf("Please input the following:\n\n");
+  printf("Item ID: ");
+  do 
+  {
+    scanf("%d%c", &itemIDNum, &cEnter);
+
+    if (itemIDNum >= 0) 
+    {
+      if ((ItemIDNumCheck(UserDetails, itemIDNum, usercount)) != -1)
+        printf("Item ID already exists, please re-input: ");
+      else
+        UserDetails[user].ItemCount[itemNum].nItemID = itemIDNum;
+    } 
+    else
+      printf("Invalid input, please re-input.\n");
+
+  } while ((ItemIDNumCheck(UserDetails, itemIDNum, usercount)) != -1);
+
+  printf("Item Name: ");
+  do {
+    getString(UserDetails[user].ItemCount[itemNum].cItemName);
+    if (strlen(UserDetails[user].ItemCount[itemNum].cItemName) > 20)
+      printf("Item Name can only be a maximum of 20 characters, input again: ");
+  } while (strlen(UserDetails[user].ItemCount[itemNum].cItemName) > 20);
+
+  printf("Category: ");
+  do {
+    getString(UserDetails[user].ItemCount[itemNum].cCategory);
+    if (strlen(UserDetails[user].ItemCount[itemNum].cCategory) > 15)
+      printf("Category can only be a maximum of 15 characters, input again: ");
+  } while (strlen(UserDetails[user].ItemCount[itemNum].cCategory) > 15);
+
+  printf("Item Description: ");
+  do 
+  {
+    getString(UserDetails[user].ItemCount[itemNum].cItemDesc);
+    if (strlen(UserDetails[user].ItemCount[itemNum].cItemDesc) > 30)
+      printf("Item Description can only be a maximum of 30 characters, input "
+             "again: ");
+  } while (strlen(UserDetails[user].ItemCount[itemNum].cItemDesc) > 30);
+
+  printf("Quantity: ");
+  do 
+  {
+    scanf("%d", &UserDetails[user].ItemCount[itemNum].nQuantity);
+
+  } while ((UserDetails[user].ItemCount[itemNum].nQuantity) < 0);
+
+  printf("Price: ");
+  do 
+  {
+    scanf("%f", &UserDetails[user].ItemCount[itemNum].fPrice);
+
+  } while ((UserDetails[user].ItemCount[itemNum].fPrice) < 0);
+
+  UserDetails[user].items++;
+
+  printf("Item added successfully! Press 1 to go back to the main menu: ");
+  while (nChoice != 1) 
+  {
+    scanf("%d", &nChoice);
+    if (nChoice == 1) 
+    {
+      // system("cls");
+      displayEdge();
+      sellMenu(UserDetails, user, usercount);
+    }
+  }
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  sortItems organizes a user's items for sale in ascending order of item IDs
+  Precondition: *item1's Item ID is great than *item2's Item ID
+  @param *item1 is the first item to be swapped
+  @param *item2 is the item to be swapped with
+  @returns nothing due to the function being a void
+*/
+void 
+sortItems(struct Item *item1, struct Item *item2)
+{
+  struct Item temp;
+
+  temp = *item1;
+  *item1 = *item2;
+  *item2 = temp;
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  showProducts displays the products in a table format
+  @param UserDetails[] is the array of structured users
+  @param user is the index of a specific user
+  @param count is the total number of items
+  @returns nothing due to the function being a void
+*/
+void 
+showProducts(struct User UserDetails[], int user, int count) 
+{
+  int i, j, x;
+  int next;
+  int totalitems = UserDetails[user].items;
+
+  for (i = 0; i < totalitems - 1; i++)
+    for (j = i + 1; j < totalitems; j++)
+      if (UserDetails[user].ItemCount[i].nItemID >
+          UserDetails[user].ItemCount[j].nItemID)
+        sortItems(&UserDetails[user].ItemCount[i],
+                  &UserDetails[user].ItemCount[j]);
+
+  displayEdge();
+  printf("|     Product ID     |     Item Name      |      Category      |    "
+         "Unit Price      |       Quantity     |\n");
+  for (x = 0; x < count; x++) 
+  {
+    displayEdge();
+    printf("|%20d|%-20s|%-20s|PhP%17.2f|%20d|\n",
+           UserDetails[user].ItemCount[x].nItemID,
+           UserDetails[user].ItemCount[x].cItemName,
+           UserDetails[user].ItemCount[x].cCategory,
+           UserDetails[user].ItemCount[x].fPrice,
+           UserDetails[user].ItemCount[x].nQuantity);
+  }
+
+  displayEdge();
+  /*
+  printf("\nPress 1 to return: ");
+  do {
+    scanf("%d", &next);
+
+    if (next == 1) {
+      // system("cls");
+      displayEdge();
+
+      sellMenu(UserDetails, user, count);
+    }
+
+  } while (next != 1);
+  */
+}
+
+/*
+contributed by Chua, Micole
+showLowStockProducts shows all of the products the user has that have a quantity of less than 5
+
+parameters: 
+@param UserDetails[] = array of structured users
+@param user = index of a specific user
+@param count = total number of items
+
+important variables: 
+@var totalitems = total items of the user
+@var cont = continue showing products
+
+precondition: none
+
+@returns nothing 
+*/
+void 
+showLowStockProducts(struct User UserDetails[], int user, int count) 
+{
+
+  //variable declaration and initialization
+  int i, j, x;
+  int totalitems = UserDetails[user].items;
+  char cont = 'N', dump;
+
+  //sort all items from the user
+  for (i = 0; i < totalitems - 1; i++)
+    for (j = i + 1; j < totalitems; j++)
+      if (UserDetails[user].ItemCount[i].nItemID >
+          UserDetails[user].ItemCount[j].nItemID)
+        sortItems(&UserDetails[user].ItemCount[i],
+                  &UserDetails[user].ItemCount[j]);
+
+  //will exit when all products have been checked or if user inputs any character that is not N/n
+  for (x = 0; x < count && (cont == 'N' || cont == 'n'); x++) {
+    displayEdge();
+    //checks if the quantity of that item is less than 5
+    if (UserDetails[user].ItemCount[x].nQuantity < 5) {
+      //if less than 5, will output the item
+      printf("|     Product ID     |     Item Name      |      Category      | "
+             "   Unit Price      |       Quantity     |\n");
+      displayEdge();
+      printf("|%20d|%-20s|%-20s|PhP%17.2f|%20d|\n",
+             UserDetails[user].ItemCount[x].nItemID,
+             UserDetails[user].ItemCount[x].cItemName,
+             UserDetails[user].ItemCount[x].cCategory,
+             UserDetails[user].ItemCount[x].fPrice,
+             UserDetails[user].ItemCount[x].nQuantity);
+      displayEdge();
+      printf("\n+------------------------------+\n");
+      printf("|       Item Description       |\n");
+      printf("+------------------------------+\n|%-30s|\n+---------------------"
+             "---------+\n",
+             UserDetails[user].ItemCount[x].cItemDesc);
+      //if the next input is less than count (meaning there are still items to look at), then will get user input to continue or not
+      if (x + 1 < count)
+        printf("\n[N]: Next\t[X]: Exit\n");
+      else if (x + 1 == count)
+        printf("\nEND OF THE LIST\n[X]: Exit\n");
+      //if no more items to look at, will output message and ask for user to input X for exit
+
+      scanf("%c%c", &cont, &dump);
+      //if the user inputs any char other than N/n, go back to sell menu
+      if (cont == 'X' || cont == 'x' || cont!='N' || cont!='n') {
+        displayEdge();
+        sellMenu(UserDetails, user, count);
+      }
+    }
+  }
+}
+
+/*
+contributed by Chua, Micole
+
+substringSearch returns the true(1) if name(user inputted serach variable) is inside the given item's name
+
+parameters: 
+@param name = user inputted string to compare and to search for
+@param ItemCount = the item being compared
+
+important variables: 
+@var found = initialized as false, if the user input is found in the item name, will
+become true , return value
+
+precomdition: ItemCount.cItemName cannot be empty , name also cannot be empty 
+@returns int 0/1 true or false (0 or false if name is not found within ItemCount.cItemName, 1 if it is)
+*/
+int 
+substringSearch(char name[21], struct Item ItemCount) {
+  int found = 0, x, y, z = 0, len;
+
+  //if the len of name is smaller or equal to the item name
+  //len=the difference of their lengths
+  //else name is too big to be inside the item name thus return false 
+  if (strlen(name) <= strlen(ItemCount.cItemName)) {
+    len = strlen(ItemCount.cItemName) - strlen(name);}
+    else return 0;
+
+  /*
+  eg. 
+
+name: shirt (len=5)
+item: T-shirt (len=7)
+len=2
+
+y can be 0, 1, and 2
+y=0 : it will look at T-shi
+y=1 : it will look at -shir
+y=2 : it will look at shirt
+
+z is the number of same letters in one to one comparison so 
+
+eg.
+T-shi                        shirt
+shirt                        shirt
+none of them are same (z=0)  All of them are same z=5
+
+z== len of the name, means that name appears in the string
+which will return 1
+  */
+    for (y = 0; y <= len && found == 0; y++) {
+      z = 0;
+      // eg. search string is shirt and item is T-Shirt
+      //z = same inputs so if 
+      for (x = 0; x <= strlen(name) && z < strlen(name); x++) {
+        if (name[x] == ItemCount.cItemName[y + x]) {
+          z++;
+        } else
+          z = 0;
+      }
+      if(z==strlen(name))
+      found = 1;
+    }
+  
+  return found;
+}
+
+/*
+contributed by Chua, Micole
+
+showStringProducts will see if the user input is within the name or category of the item. If it is, it will be outputted. This applies to all items from all users (except the user that is logged in).
+
+parameters: 
+@param UserDetails[] = array of structured users
+@param user = index of a specific user
+@param usercount = total number of users
+@param condition = condition to output
+@param function = will identify what the condition is checked agains (name or category)
+
+important variables:
+@var cont = continue showing products       
+
+precondition: function must be either 'N' or 'C'
+
+@returns nothing
+*/
+void 
+showStringProducts(struct User UserDetails[], int user, int usercount, String20 condition, char function) 
+{
+  //variable declaration and initalization
+  int i, j, x, y;
+  int next;
+  int totalitems = UserDetails[user].items;
+  char cont = 'N';
+
+  //sort the items of the user
+  for (i = 0; i < totalitems - 1; i++)
+    for (j = i + 1; j < totalitems; j++)
+      if (UserDetails[user].ItemCount[i].nItemID >
+          UserDetails[user].ItemCount[j].nItemID)
+        sortItems(&UserDetails[user].ItemCount[i],
+                  &UserDetails[user].ItemCount[j]);
+
+  displayEdge();
+  //for all the users of site/app & while the user wishes to continue
+  for (y = 0; y < usercount && cont == 'N'; y++) 
+  {
+    //for all the items of all users
+    for (x = 0; x < UserDetails[y].items && cont == 'N'; x++) 
+    {
+      //if the function is N (name), user sibstringSearch to see if item needs to be outputted
+      if (function == 'N' &&
+          substringSearch(condition, UserDetails[y].ItemCount[x])) {
+          	printf("|     Product ID     |     Item Name      |      Category      |    "
+         "Unit Price      |       Quantity     |\n");
+          	displayEdge();
+        printf("|%20d|%-20s|%-20s|PhP%17.2f|%20d|\n",
+               UserDetails[y].ItemCount[x].nItemID,
+               UserDetails[y].ItemCount[x].cItemName,
+               UserDetails[y].ItemCount[x].cCategory,
+               UserDetails[y].ItemCount[x].fPrice,
+               UserDetails[y].ItemCount[x].nQuantity);
+               displayEdge();
+        //asking for user input to continue or exit
+        printf("\n[N]: Next\t[X]: Exit\nPlease input the letter of your chosen action: ");
+        scanf("%c", &cont);
+      } 
+      else if (function == 'C' &&
+                 strcmp(condition, UserDetails[y].ItemCount[x].cCategory)==0) 
+      {
+        //if function is c(category), use strcomp to see if the categories are the same, then output the details of that item if they are
+                 	printf("|     Product ID     |     Item Name      |      Category      |    "
+         "Unit Price      |       Quantity     |\n");
+         displayEdge();
+        printf("|%20d|%-20s|%-20s|PhP%17.2f|%20d|\n",
+               UserDetails[y].ItemCount[x].nItemID,
+               UserDetails[y].ItemCount[x].cItemName,
+               UserDetails[y].ItemCount[x].cCategory,
+               UserDetails[y].ItemCount[x].fPrice,
+               UserDetails[y].ItemCount[x].nQuantity);
+        displayEdge();
+
+        printf("\n[N]: Next\t[X]: Exit\nPlease input the letter of your chosen action: ");
+        scanf("%c", &cont);
+      }
+    }
+  }
+
+  /*printf("\nPress 1 to return: ");
+  do {
+    scanf("%d", &next);
+
+    if (next == 1) {
+      // system("cls");
+      displayEdge();
+
+      sellMenu(UserDetails, user, usercount);
+    }
+
+  } while (next != 1);*/
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  EditStock is the menu wherein the user can decide to change properties of an item being sold.
+  Precondition: Total number of users is greater than 0; There is at least one item in the list of products
+  @param UserDetails[] is the array of structured users
+  @param user is the index of a specific user
+  @param usercount is the total number of users
+
+  @returns nothing due to the function being a void
+*/
+void 
+EditStock(struct User UserDetails[], int user, int usercount) 
+{
+  int nUserChoice = 0;
+  int itemID;
+  int ret;
+  int i = 0, found = 0, j, k, x;
+  int items = UserDetails[user].items;
+  char dump;
+
+  int add;
+  float price;
+
+  for (j = 0; j < items - 1; j++)
+    for (k = j + 1; j < items; j++)
+      if (UserDetails[user].ItemCount[j].nItemID >
+          UserDetails[user].ItemCount[k].nItemID)
+        sortItems(&UserDetails[user].ItemCount[j],
+                  &UserDetails[user].ItemCount[k]);
+
+  displayEdge();
+  printf("|     Product ID     |     Item Name      |      Category      |    "
+         "Unit Price      |       Quantity     |\n");
+  for (x = 0; x < items; x++) 
+  {
+    displayEdge();
+    printf("|%20d|%-20s|%-20s|PhP%17.2f|%20d|\n",
+           UserDetails[user].ItemCount[x].nItemID,
+           UserDetails[user].ItemCount[x].cItemName,
+           UserDetails[user].ItemCount[x].cCategory,
+           UserDetails[user].ItemCount[x].fPrice,
+           UserDetails[user].ItemCount[x].nQuantity);
+  }
+
+  displayEdge();
+
+  printf("\n\nInput Item ID of item to be edited: ");
+  scanf("%d%c", &itemID, &dump);
+  while (found == 0 && i < items) 
+  {
+    if (itemID == (UserDetails[user].ItemCount[i].nItemID)) 
+    {
+      found = 1;
+    } else
+      i++;
+  }
+  if (found == 0) 
+  {
+    printf("Item ID not found! Press 1 to return to sell menu");
+    do 
+    {
+      scanf("%d%c", &ret, &dump);
+      if (ret == 1) 
+      {
+        sellMenu(UserDetails, user, usercount);
+      }
+
+    } while (ret != 1);
+  } 
+  else 
+  {
+    displayEdge();
+    printf("\t\t\t\tItem Chosen: %s\n\n",
+           UserDetails[user].ItemCount[i].cItemName);
+    printf("\t\t1. Replenish\n\n\t\t2. Change Price\n\n\t\t3. Change Item "
+           "Name\n\n");
+    printf("\t\t4. Change Category\n\n\t\t5. Change "
+           "Description\n\n\t\t6.Finish Editing\n\n");
+    printf("\t\tSelect an action: ");
+    do 
+    {
+      scanf("%d%c", &nUserChoice, &dump);
+    } while (nUserChoice < 1 || nUserChoice > 6);
+
+    switch (nUserChoice) 
+    {
+      case 1:
+        displayEdge();
+        printf("\t\tHow much will be added?: ");
+        do 
+        {
+          scanf("%d%c", &add, &dump);
+          if (add > 0)
+            UserDetails[user].ItemCount[i].nQuantity += add;
+          else
+            printf("Invalid input! Please re-input: ");
+        } while (add <= 0);
+        displayEdge();
+        sellMenu(UserDetails, user, usercount);
+  
+        break;
+      case 2:
+        displayEdge();
+        printf("\t\tNew price: ");
+        do 
+        {
+          scanf("%f%c", &price, &dump);
+          if (price >= 0.0)
+            UserDetails[user].ItemCount[i].fPrice = price;
+          else
+            printf("Invalid input! Please re-input: ");
+        } while (price < 0.0);
+        displayEdge();
+        sellMenu(UserDetails, user, usercount);
+  
+        break;
+      case 3:
+        displayEdge();
+        printf("New item name: ");
+        do 
+        {
+          getString(UserDetails[user].ItemCount[i].cItemName);
+          if (strlen(UserDetails[user].ItemCount[i].cItemName) > 20)
+            printf("Item Name can only be a maximum of 20 characters, input "
+                   "again: ");
+        } while (strlen(UserDetails[user].ItemCount[i].cItemName) > 20);
+        displayEdge();
+        sellMenu(UserDetails, user, usercount);
+  
+        break;
+      case 4:
+        displayEdge();
+        printf("New Category: ");
+        do 
+        {
+          getString(UserDetails[user].ItemCount[i].cCategory);
+          if (strlen(UserDetails[user].ItemCount[i].cCategory) > 15)
+            printf(
+                "Category can only be a maximum of 15 characters, input again: ");
+        } while (strlen(UserDetails[user].ItemCount[i].cCategory) > 15);
+        displayEdge();
+        sellMenu(UserDetails, user, usercount);
+        break;
+      case 5:
+        displayEdge();
+        printf("New Description: ");
+        do 
+        {
+          getString(UserDetails[user].ItemCount[i].cItemDesc);
+          if (strlen(UserDetails[user].ItemCount[i].cItemDesc) > 30)
+            printf("Item Description can only be a maximum of 30 characters, "
+                   "input again: ");
+        } while (strlen(UserDetails[user].ItemCount[i].cItemDesc) > 30);
+        displayEdge();
+        sellMenu(UserDetails, user, usercount);
+        break;
+      case 6:
+        // system("cls");
+        displayEdge();
+        sellMenu(UserDetails, user, usercount);
+        break;
+    }
+  }
+}
+/*
+contributed by Chua, Micole
+makeTransactionFile will append the data from checking out to the file Transactions.txt
+
+parameters:
+@param UserDetails[] - array of structured users
+@param Items[] - array of structured items (this is the items within a singular transaction)
+@param Date - date of transaction
+@param seller - index of seller
+@param buyer - index of buyer
+@param nReceipt - total number of transactions
+@param quantity - number of items within the transaction
+
+important variables:
+@var total - the running total of the receipt 
+
+preconditon: Transactions.txt must exist
+
+@returns nothing
+*/
+void 
+makeTransactionFile(struct User UserDetails[], struct Item Items[5],struct Date Date, int seller, int buyer, int nReceipt,int quantity) 
+{
+//variable declarations and initalizations
+  FILE *fp;
+  int i, j;
+  float total = 0.0;
+
+  //open file (if file is able to open)
+  if ((fp = fopen("Transactions.txt", "r+"))!=NULL)
+  {
+    //update the number of receipts
+    fseek(fp,0,SEEK_SET);
+    fprintf(fp, "%d\n", nReceipt);
+    //go to the end of the file
+  	fseek(fp, 0, SEEK_END);
+    //print to the txt file 
+    	fprintf(fp, "%d/%d/%d\n%d\n",Date.nMonth,
+              Date.nDay, Date.nYear, UserDetails[buyer].nID);
+    //output each item in the transaction 
+    	for(j=0; j<quantity; j++)
+      {
+  		  fprintf(fp,"%d %d %s\n%.2f %.2f\n", Items[j].nQuantity, Items[j].nItemID,
+                Items[j].cItemName, Items[j].fPrice,
+                Items[j].nQuantity * Items[j].fPrice);
+        total += Items[j].nQuantity * Items[j].fPrice;
+  		}
+    //output the total of the receipt
+      fprintf(fp, "%.2f\n%d %s\n\n", total, UserDetails[seller].nID,
+              UserDetails[seller].cName);
+    fclose(fp);
+  } else
+    printf("Error opening Transactions.txt!");
+}
+
+/*
+contributed by Chua, Micole
+scanTransactionFile will scan all date from the file Transactions.txt
+
+parameters:
+@param UserDetails[] - array of structured users
+@param receipt[] - array of transactions
+
+important variables:
+@var nReceipt - total number of receipts
+
+preconditions: Transactions.txt must exist
+
+@returns nothing 
+*/
+void 
+scanTransactionFile(struct User UserDetails[],  struct Transaction receipt[]) 
+{
+//variable declaration and initialization
+  FILE *fp;
+  int i, j, nReceipt=0;
+  char dump, strInput[50], name[50];
+  float total = 0.0;
+  
+   //if the file is able to open
+  if ((fp = fopen("Transactions.txt", "r"))!=NULL) 
+  {
+    //get the total number of transactions
+  	fscanf(fp, "%d%c%c", &nReceipt, &dump, &dump);
+    //for all the receipts
+   for(j=0; j<nReceipt; j++)
+   {
+     fscanf(fp, "%d%c%d%c%d%c%d%c%d%c", &receipt[j].nDate.nMonth, &dump, &receipt[j].nDate.nDay, &dump,
+     &receipt[j].nDate.nYear, &dump, &receipt[j].nBuyerID, &dump, &receipt[j].nItems, &dump );
+ 
+    for(i=0; i<receipt[j].nItems; i++)
+    {  
+    	fscanf(fp, "%d%c%d%c", &receipt[j].sItems[i].nQuantity, &dump, &receipt[j].sItems[i].nItemID, &dump);
+      do 
+  		{
+  	    fscanf(fp, "%s%c", strInput, &dump);
+  		  strcat(receipt[j].sItems[i].cItemName, strInput);
+  		  if (dump != '\n') 
+  			{
+  		            	strcat(receipt[j].sItems[i].cItemName, " ");
+  			}
+  		} while (dump != '\n');
+  		fscanf(fp, "%f%c%f%c", &receipt[j].sItems[i].fPrice, &dump, &total, &dump);
+		}
+     
+			fscanf(fp, "%f%c%d%c", &total, &dump, &receipt[j].sItems[0].nSellerID, &dump);
+			for(i=1; i<receipt[j].nItems; i++)
+			receipt[j].sItems[i].nSellerID=receipt[j].sItems[0].nSellerID;
+			do 
+			{
+		      fscanf(fp, "%s%c", strInput, &dump);
+		      strcat(name, strInput);
+		      if (dump != '\n') 
+					{
+		        strcat(name, " ");
+				  }
+		  } while (dump != '\n');
+		  fscanf(fp, "%c", &dump);
+	 }
+    fclose(fp);
+  } 
+  else
+    printf("Error opening Transactions.txt!");
+    
+}
+
+/*
+contributed by Chua, Micole
+getCart will scan and save all data from the file Cart.txt
+
+parameters: 
+@param UserDetails[] = array of users
+@param user = index of user logged in
+@param count = total number of users
+
+precondition: Cart.txt must exist
+@returns nothing 
+*/
+void 
+getCart(struct User UserDetails[], int user, int count) 
+{
+  //variable declaration and initialization
+  int x, y, i, j;
+  char dump;
+  FILE *fpcart;
+
+  //if file opens, scan all data
+  if ((fpcart = fopen("Cart.txt", "r")) != NULL) 
+  {
+    for (x = 0; x <= count; x++) 
+    {
+      fscanf(fpcart, "%d%c", &UserDetails[x].carts, &dump);
+      for (y = 0; y < UserDetails[x].carts; y++) 
+      {
+        fscanf(fpcart, "%d%c%d%c", &UserDetails[x].CartCount[y].nItemID, &dump,
+               &UserDetails[x].CartCount[y].nQuantity, &dump);
+        for (i = 0; i < count; i++) 
+        {
+          for (j = 0; j < UserDetails[i].items; j++) 
+          {
+            if (UserDetails[x].CartCount[y].nItemID ==
+                UserDetails[i].ItemCount[j].nItemID) 
+            {
+               strcpy(UserDetails[x].CartCount[y].cCategory,
+                  UserDetails[i].ItemCount[j].cCategory);
+              strcpy(UserDetails[x].CartCount[y].cItemDesc,
+                  UserDetails[i].ItemCount[j].cItemDesc);
+              strcpy(UserDetails[x].CartCount[y].cItemName,
+                  UserDetails[i].ItemCount[j].cItemName);
+              UserDetails[x].CartCount[y].fPrice =
+                  UserDetails[i].ItemCount[j].fPrice;
+                UserDetails[x].CartCount[y].nSellerID=UserDetails[i].ItemCount[j].nSellerID;
+            }
+          }
+        }
+      }
+      fscanf(fpcart, "%c", &dump);
+    }
+    fclose(fpcart);
+  } 
+  else
+    printf("\nCannot open Cart.txt. \n");
+}
+
+
+/*
+contributed by Chua, Micole
+updateCart will print all the carts into the file Cart.txt
+
+parameters: 
+@param UserDetails[] = array of users
+@param user = index of user logged in
+@param count = total number of users
+
+precondition: Cart,txt must exist
+
+@returns nothing 
+*/
+void 
+updateCart(struct User UserDetails[], int user, int count) 
+{
+  //variable declaration and initialization
+  FILE *fpcart;
+  int x, y, z;
+
+  //if able to open file
+  if ((fpcart = fopen("Cart.txt", "w")) != NULL) 
+  {
+    for (x = 0; x <= count; x++) 
+    {
+      fprintf(fpcart, "%d\n", UserDetails[x].carts);
+      for (z = 0; z < UserDetails[x].carts; z++) 
+      {
+        fprintf(fpcart, "%d %d\n", UserDetails[x].CartCount[z].nItemID, 
+                UserDetails[x].CartCount[z].nQuantity);
+      }
+      fprintf(fpcart, "\n");
+    }
+    fclose(fpcart);
+  } 
+  else
+    printf("\nUnable to open Cart.txt\n");
+}
+
+/*
+contributed by Chua, Micole
+addToCart will add an item to the cart of the user
+
+parameters:
+@param UserDetails[]=array of structured users
+@param user=index of a specific user
+@param count = total # of users
+
+important variables:
+@var prodID = user inputted product ID (the item they want to add to cart)
+@var amt= Quantity of the item the user wants
+@var done = indicates if the user has finished inputting (will also indicate if there was an item found)
+
+precondition: none
+
+@returns nothing 
+*/
+void 
+addToCart(struct User UserDetails[], int user, int count) 
+{
+  //variable declaration and initialization
+  int x, y, done = 0, prodID, amt;
+  //if the user's cart is not full
+  if (UserDetails[user].carts < 10) 
+  {
+    do 
+    {
+
+      printf("\n\n\t\tProduct ID: ");
+      scanf("%d", &prodID);
+
+      for (x = 0; x < count && done == 0; x++) 
+      {
+        for (y = 0; y < UserDetails[x].items && done == 0; y++) 
+        {
+          if (prodID == UserDetails[x].ItemCount[y].nItemID && x != user) 
+          {
+            UserDetails[user].CartCount[UserDetails[user].carts] =
+                UserDetails[x].ItemCount[y];
+            UserDetails[user].CartCount[UserDetails[user].carts].nQuantity = 0;
+            //will loop asking for Quantity until user inputs quantity lesser or equal to in stock
+            do 
+            {
+              printf("\t\tQuantity: ");
+              scanf("%d", &amt);
+              if (amt > UserDetails[x].ItemCount[y].nQuantity)
+                printf("\n\n\t\tThe seller only has %d of this item in stock. "
+                       "Please input a smaller number. \n\n",
+                       UserDetails[x].ItemCount[y].nQuantity);
+            } while (amt > UserDetails[x].ItemCount[y].nQuantity);
+            done = 1;
+            UserDetails[user].CartCount[UserDetails[user].carts].nQuantity =
+                amt;
+            UserDetails[user].carts++;
+            printf("\n\t\tYou have %d items in your cart. \n\n",
+                   UserDetails[user].carts);
+          } 
+          else
+            count++;
+        }
+      }
+      if (done == 0)
+        printf("\n\n\t\tProduct ID cannot be found. ");
+    } while (done == 0);
+    updateCart(UserDetails, user, count);
+  } 
+  else
+    printf("\n\n\t\tCart is full. Please edit cart or checkout first.\n\n");
+  buyMenu(UserDetails, user, count);
+}
+
+/*
+contributed by Chua, Micole
+showCart will show all the items in cart
+
+parameters:
+@param UserDetails[]=array of structured users
+@param user=index of a specific user
+@param count = total # of users
+
+precondition: none
+
+@returns nothing 
+*/
+void 
+showCart(struct User UserDetails[], int user, int count) 
+{
+  int x;
+
+  printf("\n\n");
+  displayEdge();
+  printf("|     Product ID     |     Item Name      |      Category      |    "
+         "Unit Price      |       Quantity     |\n");
+  for (x = 0; x < UserDetails[user].carts; x++) 
+  {
+    displayEdge();
+    printf("|%20d|%-20s|%-20s|PhP%17.2f|%20d|\n",
+           UserDetails[user].CartCount[x].nItemID,
+           UserDetails[user].CartCount[x].cItemName,
+           UserDetails[user].CartCount[x].cCategory,
+           UserDetails[user].CartCount[x].fPrice,
+           UserDetails[user].CartCount[x].nQuantity);
+  }
+  displayEdge();
+  printf("\n\n");
+}
+
+/*
+  Contributed by: Renzel Dimaculangan
+  sellMenu displays the sell menu along with the actions a user can do.
+  Precondition: The total number of users is greater than 0
+  @param UserDetails[] is the array of structured users
+  @param user is the index of a specific user
+  @param count is the total number of users
+  @returns nothing due to the function being a void
+*/
+void 
+sellMenu(struct User UserDetails[], int user, int count) 
+{
+  int nUserChoice;
+  char dump;
+
+  do
+  {
+    printf("\t\t\t\t---------- %s's Sell Menu----------\n\n",
+           UserDetails[user].cName);
+    printf("\t\t1. Add New Item\n\n\t\t2. Edit Stock\n\n\t\t3. Show My "
+           "Products\n\n");
+    printf("\t\t4. Show My Low Stock Products\n\n\t\t5. Exit Sell Menu\n\n");
+  
+    nUserChoice = -1;
+    printf("\t\tSelect an action: ");
+    do 
+    {
+      scanf("%d%c", &nUserChoice, &dump);
+  
+    } while (nUserChoice < 1 || nUserChoice > 5);
+  
+    switch (nUserChoice) 
+    {
+      case 1:
+        // system("cls");
+        displayEdge();
+        if (UserDetails[user].items < 20) 
+        {
+          AddItem(UserDetails, user, count);
+    
+          nUserChoice = -1;
+        } 
+        else
+          printf("Error! Max number of items reached!");
+        break;
+      case 2: 
+      {
+        // system("cls");
+        displayEdge();
+        EditStock(UserDetails, user, count);
+      } 
+        break;
+      case 3: 
+      {
+        // system("cls");
+        showProducts(UserDetails, user, UserDetails[user].items);
+        nUserChoice = -1;
+      }
+    
+      break;
+      case 4: 
+      {
+        showLowStockProducts(UserDetails, user, UserDetails[user].items);
+        nUserChoice = -1;
+      }
+        break;
+      case 5:
+        // system("cls");
+        displayEdge();
+        userMenu(UserDetails, user, count);
+        break;
+    
+      default:
+        printf("Invalid input!");
+    }
+  }while(nUserChoice!=5);
+}
+
+/*
+contributed by Chua, Micole
+removeCart will remove a cart
+
+parameters: 
+@param UserDetails[] = array of users
+@param user = index of a specific user
+@param count = total # of users
+@param item = cart to be removed
+
+important variables:
+@var clear = clears the final cart after it is copied to previous index
+
+precondition: none
+
+@returns nothing 
+*/
+void 
+removeCart(struct User UserDetails[], int user, int count, struct Item item) 
+{
+
+  //variable declaration 
+  int x, y;
+  struct Item clear;
+
+  //move back all the carts to cover and delete the removed cart
+  for (x = 0; x < UserDetails[user].carts; x++) 
+  {
+    if (UserDetails[user].CartCount[x].nItemID == item.nItemID) 
+    {
+      for (y = x + 1; y < UserDetails[user].carts; y++) 
+      {
+        UserDetails[user].CartCount[y - 1] = UserDetails[user].CartCount[y];
+      }
+      UserDetails[user].carts = UserDetails[user].carts - 1;
+      UserDetails[user].CartCount[UserDetails[user].carts] = clear;
+    }
+  }
+  updateCart(UserDetails, user, count);
+}
+
+/*
+contributed by Chua, Micole
+EditCart is the menu that allows the user to choose to remove carts or edit quantities
+
+parameters: 
+@param UserDetails[] = array of users
+@param user = index of a specific user
+@param count = total # of users
+
+important variales: 
+@var nUserChoice = choice of action of user
+@var nInput = int input of user (for seller ID and product ID inputs)
+@var amt = edit quantity of item
+@var found = to tell if item is found
+
+precondition: none
+@returns nothing 
+*/
+void EditCart(struct User UserDetails[], int user, int count) 
+{
+  //variable declaration and initalization
+  int nUserChoice, nInput, x, y, found = 0, amt;
+  char dump;
+  
+	do 
+  {
+    getCart(UserDetails, user, count);
+    printf("\t\t\t\t---------- %s's Edit Cart Menu----------\n\n",
+           UserDetails[user].cName);
+    printf("\t\t1. Remove All Items from Seller\n\n\t\t2. Remove Specific "
+           "Item\n\n\t\t3. Edit Quantity\n\n\t\t4. Finish Edit Cart\n\n");
+  
+    nUserChoice = -1;
+    
+      printf("\t\tSelect an action: ");
+      do 
+      {
+        scanf("%d%c", &nUserChoice, &dump);
+  
+      } while (nUserChoice < 1 || nUserChoice > 4);
+  
+      switch (nUserChoice) 
+      {
+        case 1: 
+        {
+          // remove all from seller
+          printf("\n\n\t\tSeller ID: ");
+          scanf("%d", &nInput);
+          for (x = 0; x < UserDetails[user].carts; ) 
+          {
+            if (UserDetails[user].CartCount[x].nSellerID == nInput) 
+            {
+              removeCart(UserDetails, user, count, UserDetails[user].CartCount[x]);
+            }
+            else x++;
+          }
+          updateCart(UserDetails, user, count);
+          break;
+        }
+        case 2: 
+        {
+          // remove specific item
+          printf("\n\n\t\tProduct ID: ");
+          scanf("%d", &nInput);
+          for (x = 0; x < UserDetails[user].carts; x++) 
+          {
+            if (UserDetails[user].CartCount[x].nItemID == nInput) 
+            {
+              removeCart(UserDetails, user, count, UserDetails[user].CartCount[x]);
+            }
+          }
+          updateCart(UserDetails, user, count);
+          break;
+        }
+        case 3: 
+        {
+          // edit quantity
+          printf("\n\n\t\tProduct ID: ");
+          scanf("%d", &nInput);
+          for (x = 0; x < UserDetails[user].carts; x++) 
+          {
+            if (UserDetails[user].CartCount[x].nSellerID == nInput) 
+            {
+              do 
+              {
+                printf("\n\n\t\tNew Quantity: ");
+                scanf("%d", &amt);
+    
+                // to verify if there is enough stock
+                for (x = 0; x < count && found == 0; x++) 
+                {
+                  for (y = 0; y < UserDetails[x].items && found == 0; y++) 
+                  {
+                    if (nInput == UserDetails[x].ItemCount[y].nItemID) 
+                    {
+                      found = 1;
+                    }
+                  }
+                }
+                x--;
+                y--;
+              } while (amt > UserDetails[x].ItemCount[y].nQuantity);
+    
+              // to actually change amount
+              for (x = 0; x < UserDetails[user].carts && found == 1; x++) 
+              {
+                if (UserDetails[user].CartCount[x].nItemID == nInput) 
+                {
+                  UserDetails[user].CartCount[x].nQuantity = amt;
+                  found = 0;
+                }
+              }
+            }
+          }
+          updateCart(UserDetails, user, count);
+          break;
+        }
+        case 4: 
+        {
+          displayEdge();
+          updateCart(UserDetails, user, count);
+          break;
+        }
+      }
+  } while (nUserChoice != 4);
+}
+
+/*
+contributed by Chua, Micole
+cartCompare will indicate if the price or quantity of an item in cart has changed
+
+parameters: 
+@param UserDetails[]= array of users
+@param user = index of user that is logged in
+@param count = total number of users
+@param cart = cart to be compared
+
+important variables: 
+@var out = varialbe to indicate if there is a change in price or quantity (0 [false] if nothing has changed, else return x>0 [true])
+
+precondition: cart.fPrice & cart.nQuantity must exist
+
+@returns nothing 
+*/
+void cartCompare(struct User UserDetails[], int user, int count, struct Item cart) 
+{
+
+  //variable declaration
+  int out = 0, y, z;
+
+  //will check all items from all users except the user logged in
+  for (y = 0; y < count; y++) 
+  {
+    if (y != user) 
+    {
+      for (z = 0; z < UserDetails[y].items; z++) 
+      {
+        if (UserDetails[y].ItemCount[z].nItemID == cart.nItemID) 
+        {
+          if (UserDetails[y].ItemCount[z].nQuantity < cart.nQuantity) 
+          {
+            printf("\n\n\t\tQuantity Changed!\n|Old Quantity|New "
+                   "Quantity|\n|%12d|%12d|\n\n",
+                   cart.nQuantity, UserDetails[y].ItemCount[z].nQuantity);
+            cart.nQuantity = UserDetails[y].ItemCount[z].nQuantity;
+            out++;
+          }
+          if (UserDetails[y].ItemCount[z].fPrice != cart.fPrice) 
+          {
+            printf(
+                "\n\n\t\tPrice Changed!\n|Old Price|New Price|\n|%9f|%9f|\n\n",
+                cart.fPrice, UserDetails[y].ItemCount[z].fPrice);
+            cart.fPrice = UserDetails[y].ItemCount[z].fPrice;
+            out++;
+          }
+        }
+      }
+    }
+  }
+
+  if (out != 0)
+    printf("\t\tYou can still edit your cart. \n\n");
+}
+
+/*
+contributed by Chua, Micole
+checkout will remove the checked out item from the cart and will remove the stock from the seller
+
+parameters: 
+@param UserDetails[] = array of users
+@param user = index of user that is logged in
+@param count = total number of users
+@param cart = cart to be checked out
+
+important variables: 
+@var done = 0 if cart is not yet checked out, 1 if done checking out
+
+precondition: Item must have enough stock
+
+@returns struct Item (cart)
+*/
+struct Item checkout(struct User UserDetails[], int user, int count, struct Item cart) 
+{
+  //variable declaration and initialization
+  int x, y, z, done = 0;
+
+  for (x = 0; x < UserDetails[user].carts && done == 0; x++) 
+  {
+    if (cart.nItemID == UserDetails[user].CartCount[x].nItemID) 
+    {
+      for (y = 0; y < count; y++) 
+      {
+        if (y != user) 
+        {
+          for (z = 0; z < UserDetails[y].items; z++) 
+          {
+            if (cart.nItemID == UserDetails[y].ItemCount[z].nItemID) 
+            {
+              UserDetails[y].ItemCount[z].nQuantity -= cart.nQuantity;
+              removeCart(UserDetails, user, count,
+                         UserDetails[user].CartCount[x]);
+              done++;
+            }
+          }
+        }
+      }
+    }
+  }
+  updateCart(UserDetails, user, count);
+  return cart;
+}
+
+/*
+contributed by Chua, Micole
+checkoutMenu is the menu where the user can checkout one item, all from a seller, all in cart
+
+parameters: 
+@param UserDetails[] = array of users
+@param user = index of user that is logged in
+@param count = total number of users
+@param date = date as inputted by user
+
+important variables: 
+@var checkedOut[x][y] = array of items that are checkout (to be added to transaction file) 
+                = x is the index of each transaction
+                = y is the index of the items in the transaction
+@var out = num of items inside checkOut[] 
+@var ID = user input of seller ID/ productID
+@var nCart = number of carts
+
+precondition: none
+
+@returns nothing 
+*/
+void 
+checkoutMenu(struct User UserDetails[], int user, int count, struct Date date) 
+{
+  //variable declaration and initialization
+  int x, y, z, i, j, out = 0, ID, nCart, nUserChoice = -1,
+                     sellerID[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                     amounts[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                     nReceipt=0, nTransactions=0;
+                     
+  struct Item checkedOut[10]
+                        [5]; // up to 10 possible receipts(different sellers) or
+                             // up to 5 items in same transactions
+  char dump;
+  float runningTotal = 0;
+  getCart(UserDetails, user, count);
+
+  //get nReceipt
+  FILE *fp;
+  if((fp=fopen("Transactions.txt", "r"))!=NULL)
+  {
+  	fscanf(fp, "%d", &nReceipt);
+  	fclose(fp);
+  } else printf("\n\nUnable to open Transactions.txt. \n\n");
+    
+    do 
+    {
+      printf("\t\t\t\t---------- %s's Checkout Menu----------\n\n",
+             UserDetails[user].cName);
+      printf("\t\t1. All \n\n\t\t2. By a Specific Seller\n\n\t\t3. Specific "
+             "Item\n\n\t\t4. Exit Checkout Menu\n\n");
+      printf("\t\tYou have %d items in your cart. \n\n", UserDetails[user].carts);
+  
+      // checking to see if items in cart had any changes
+      for (x = 0; x < UserDetails[user].carts; x++) 
+      {
+        cartCompare(UserDetails, user, count, UserDetails[user].CartCount[x]);
+      }
+  
+      nUserChoice = -1;
+      printf("\t\tSelect an action: ");
+      do 
+      {
+        scanf("%d%c", &nUserChoice, &dump);
+  
+      } while (nUserChoice < 1 || nUserChoice > 8);
+  
+      switch (nUserChoice) 
+      {
+        case 1: {
+          // all
+          //if item can fit in existing transactions, add the item to that transaction 
+          for (x = UserDetails[user].carts - 1; x >= 0; x--) {
+            out = 0;
+            for (y = 0; y < nTransactions; y++) {
+              if (UserDetails[user].CartCount[x].nSellerID == sellerID[y] &&
+                  amounts[y] < 5) {
+                checkedOut[y][amounts[y]] = checkout(
+                    UserDetails, user, count, UserDetails[user].CartCount[0]);
+                amounts[y]++;
+                out++;
+              }
+            }
+            //else create a new transaction
+            if (out == 0) {
+              checkedOut[nTransactions][amounts[nTransactions]] = checkout(
+                  UserDetails, user, count, UserDetails[user].CartCount[0]);
+    
+              sellerID[nTransactions] = UserDetails[user].CartCount[0].nSellerID;
+              amounts[nTransactions]++;
+              nTransactions++;
+              nReceipt++;
+            }
+          }
+          //printf the receipts and add to transaction file
+          for (x = 0; x < nTransactions; x++) {
+            runningTotal = 0;
+            printf("\n\nTransaction # %d\n", x + 1);
+            printf("| Quantity | Product ID |     Item Name       | Unit Price "
+                   "|Total Price per Item|\n");
+            for (y = 0; y < amounts[x]; y++) {
+              printf("|%10d|%12d|%21s|%12.2f|%20.2f|\n", checkedOut[x][y].nQuantity,
+                     checkedOut[x][y].nItemID, checkedOut[x][y].cItemName,
+                     checkedOut[x][y].fPrice,
+                     checkedOut[x][y].nQuantity * checkedOut[x][y].fPrice);
+              runningTotal += checkedOut[x][y].nQuantity * checkedOut[x][y].fPrice;
+            }
+            printf("\n\tTotal amount due to transaction: %.2f (payable to %d",
+                   runningTotal, checkedOut[x][0].nSellerID);
+            for (i = 0; i < count; i++) {
+              if (checkedOut[x][0].nSellerID == UserDetails[i].nID) {
+                printf(" %s)\n\n", UserDetails[i].cName);
+                makeTransactionFile(UserDetails, checkedOut[x], date, i,user, nReceipt, amounts[x]);
+          updateCart(UserDetails, user, count);
+              }
+            }
+          }
+          
+          
+          break;
+        }
+        case 2: 
+        {
+          // seller
+          printf("\n\n\t\tSeller ID: ");
+          scanf("%d", &ID);
+          nCart = UserDetails[user].carts;
+          for (x = 0; (x < nCart || x == 0);) 
+          {
+            if (UserDetails[user].CartCount[x].nSellerID == ID) 
+            {
+              out = 0;
+              for (y = 0; (y < nTransactions || y == 0) && out == 0; y++) 
+              {
+                if (UserDetails[user].CartCount[0].nSellerID == sellerID[y] &&
+                    amounts[y] < 5) 
+                {
+                  checkedOut[y][amounts[y]] = checkout(
+                      UserDetails, user, count, UserDetails[user].CartCount[x]);
+                  amounts[y]++;
+                  out++;
+                }
+              }
+    
+              if (out == 0) 
+              {
+                checkedOut[nTransactions][amounts[nTransactions]] = checkout(
+                    UserDetails, user, count, UserDetails[user].CartCount[x]);
+                nTransactions++;
+                nReceipt++;
+              } else
+                x++;
+            }
+          }
+    
+            for (x = 0; x < nTransactions; x++) 
+            {
+              runningTotal = 0;
+              printf("\n\nTransaction # %d\n", x);
+              printf(
+                  "| Quantity |Product ID|      Item Name      | Unit Price |Total "
+                  "Price per Item|\n");
+              for (y = 0; y < amounts[nTransactions]; y++) 
+              {
+                printf("|%10d|%10d|%21s|%12.2f|%20.2f|\n",
+                       checkedOut[x][y].nQuantity, checkedOut[x][y].nItemID,
+                       checkedOut[x][y].cItemName, checkedOut[x][y].fPrice,
+                       checkedOut[x][y].nQuantity * checkedOut[x][y].fPrice);
+                runningTotal +=
+                    checkedOut[x][y].nQuantity * checkedOut[x][y].fPrice;
+              }
+              printf("\n\tTotal amount due to transaction: %.2f (payable to %d",
+                     runningTotal, checkedOut[x][0].nSellerID);
+              for (i = 0; i < count; i++) 
+              {
+                if (checkedOut[x][0].nSellerID == UserDetails[i].nID) 
+                {
+                  printf(" %s)\n\n", UserDetails[i].cName);
+                  makeTransactionFile(UserDetails, checkedOut[x], date, i,user, nReceipt, amounts[x]);
+                  updateCart(UserDetails, user, count);
+                }
+              }
+            }
+            updateCart(UserDetails, user, count);
+            break;
+        }
+        case 3: 
+        {
+          // product ID
+          printf("\n\n\t\tProduct ID: ");
+          scanf("%d", &ID);
+          nCart = UserDetails[user].carts;
+          for (x = 0; x < nCart;) 
+          {
+            if (UserDetails[user].CartCount[x].nItemID == ID) 
+            {
+              checkedOut[nTransactions][amounts[nTransactions]] = checkout(
+                  UserDetails, user, count, UserDetails[user].CartCount[x]);
+              amounts[nTransactions]++;
+              nReceipt++;
+              out++;
+            } else
+              x++;
+          }
+    
+          for (x = 0; x < nTransactions; x++) 
+          {
+            runningTotal = 0;
+            printf("\n\nTransaction # %d\n", x);
+            printf("| Quantity |Product ID|      Item Name      | Unit Price "
+                   "|Total Price "
+                   "per Item|\n");
+            for (y = 0; y < amounts[nTransactions]; y++) 
+            {
+              printf("|%10d|%10d|%21s|%12.2f|%20.2f|\n", checkedOut[x][y].nQuantity,
+                     checkedOut[x][y].nItemID, checkedOut[x][y].cItemName,
+                     checkedOut[x][y].fPrice,
+                     checkedOut[x][y].nQuantity * checkedOut[x][y].fPrice);
+              runningTotal += checkedOut[x][y].nQuantity * checkedOut[x][y].fPrice;
+            }
+            printf("\n\tTotal amount due to transaction: %.2f (payable to %d",
+                   runningTotal, checkedOut[x][0].nSellerID);
+            for (i = 0; i < count; i++) 
+            {
+              if (checkedOut[x][0].nSellerID == UserDetails[i].nID) 
+              {
+                printf(" %s)\n\n", UserDetails[i].cName);
+                makeTransactionFile(UserDetails, checkedOut[x], date, i,user, nReceipt, amounts[x]);
+                updateCart(UserDetails, user, count);
+              }
+            }
+          }
+          updateCart(UserDetails, user, count);
+          break;
+        }
+        case 4: 
+        {
+          displayEdge();
+          updateCart(UserDetails, user, count);
+          break;
+        }
+      }
+    } while (nUserChoice != 4);
+}
+/*
+contributed by Chua, Micole
+buyMenu is the menu where the user can choose to look at the available products, add and edit cart, or checkout
+
+parameters: 
+@param UserDetails[] = array of structured users
+@param user = index of a specific user
+@param count = total # of users
+
+important variables: 
+@var nUserChoice = action of user (eg. show all products is 1, edit cart is
+   6) cont = will indicate if the user wants to see more products sellerID =
+   used for show all products by a specific seller strInput = used for search
+   products by category and search products by name
+
+   precondition: none
+
+   @returns nothing 
+*/
+void 
+buyMenu(struct User UserDetails[], int user, int count) 
+{
+  int nUserChoice, sellerID, x, y;
+  char dump, cont = 'N', strInput[21];
+  struct Date date;
+  
+  do 
+  {
+    // CODE TO GET CART
+    getCart(UserDetails, user, count);
+    printf("\t\t\t\t---------- %s's Buy Menu----------\n\n",
+           UserDetails[user].cName);
+    printf("\t\t1. Show All Products\n\n\t\t2. Search Products by a Specific "
+           "Seller\n\n\t\t3. Search Products by Category\n\n");
+    printf("\t\t4. Search Products by Name\n\n\t\t5. Add to Cart\n\n\t\t6. Edit "
+           "Cart\n\n\t\t7. Check Out Menu\n\n\t\t8. Exit Buy Menu\n\n");
+  
+  
+      nUserChoice = -1;
+      printf("\t\tSelect an action: ");
+      do 
+      {
+        scanf("%d%c", &nUserChoice, &dump);
+  
+      } while (nUserChoice < 1 || nUserChoice > 8);
+  
+      switch (nUserChoice) 
+      {
+        case 1: 
+        {
+          // show all products
+          for (x = 0; x < count && cont == 'N'; x++) 
+          {
+            if (x != user && UserDetails[x].items>0) 
+            {
+              printf("\n\n\t\tSeller ID: %d\n\n", UserDetails[x].nID);
+              showProducts(UserDetails, x, UserDetails[x].items);
+              printf("\n\t\t[N] Next\t[X] Exit\n\t\tPlease enter the letter of your chosen action: ");
+              scanf("%c", &cont);
+            }
+          }
+          printf("\n\n\t\tFinished Outputting. \n\n");
+          break;
+        }
+        case 2: 
+        {
+          // search by seller
+          printf("\n\n\t\tSeller ID: ");
+          scanf("%d", &sellerID);
+          for (x = 0; x < count && cont == 'N'; x++) 
+          {
+            if (x != user && sellerID == UserDetails[x].nID) 
+            {
+                showProducts(UserDetails, x, UserDetails[x].items);
+                cont = 'X';
+            }
+          }
+          printf("\n\n\t\tFinished Outputting. \n\n");
+          break;
+        }
+        case 3: 
+        {
+          // search by category
+          printf("\n\n\t\tCategory: ");
+          scanf("%s", strInput);
+          showStringProducts(UserDetails, user, count, strInput, 'C');
+            scanf("%c", &dump);
+            printf("\n\n\t\tDone outputting. \n\n");
+          break;
+        }
+        case 4: 
+        {
+          // search by name
+          printf("\n\n\t\tName: ");
+          scanf("%s", strInput);
+          showStringProducts(UserDetails, user, count, strInput, 'N');
+            scanf("%c", &dump);
+            printf("\n\n\t\tDone outputting. \n\n");
+          break;
+        }
+        case 5: 
+        {
+          // add to cart
+          getCart(UserDetails, user, count);
+          addToCart(UserDetails, user, count);
+          updateCart(UserDetails, user, count);
+          break;
+        }
+        case 6: 
+        {
+          // edit cart
+          showCart(UserDetails, user, count);
+          EditCart(UserDetails, user, count);
+          break;
+        }
+        case 7: 
+        {
+          // check out menu
+          printf("\n\n\t\tKindly input the date [MM DD YYYY]: ");
+          scanf("%d%c%d%c%d", &date.nMonth, &dump, &date.nDay, &dump, &date.nYear);
+          checkoutMenu(UserDetails, user, count, date);
+          updateCart(UserDetails, user, count);
+          break;
+        }
+        case 8: 
+        {
+          displayEdge();
+          userMenu(UserDetails, user, count);
+          break;
+        }
+    }
+  } while (nUserChoice != 8);
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  userMenu shows the User Menu as well as redirections to either the sell or the buy menu
+  Precondition: The total number of users is greater than 0
+  @param UserDetails[] is the array of structured users
+  @param user is the index of a specific user
+  @param usercount is the total number of users
+  @returns nothing due to the function being a void
+*/
+void 
+userMenu(struct User UserDetails[], int user, int usercount) 
+{
+  int choice = 0;
+  char dump;
+
+  printf("\t\t\t\t----------Welcome, %s!----------\n\n",
+         UserDetails[user].cName);
+  printf("\t\t1. Sell Menu\n\n\t\t2. Buy Menu\n\n\t\t3. Exit\n\n");
+  printf("\t\tChoose an option: ");
+  do 
+  {
+    scanf("%d%c", &choice, &dump);
+  } while (choice < 1 || choice > 3);
+
+  switch (choice) 
+  {
+  case 1:
+    // system("cls");
+    displayEdge();
+    sellMenu(UserDetails, user, usercount);
+    break;
+  case 2:
+    // system{"cls");
+    // buyMenu
+    displayEdge();
+    buyMenu(UserDetails, user, usercount);
+    break;
+  case 3:
+    // system("cls);
+    displayEdge();
+    break;
+  }
+}
+/*
+  Contributed by: Dimaculangan, Renzel
+  userLogIn is the menu where the user logs in with their user ID and password before being redirected to user menu
+  Precondition: Total number of users is greater than 0
+  @returns nothing due to the function being a void
+*/
+void 
+userLogIn(struct User UserDetails[], int count) 
+{
+  int i, j;
+  int nID, nPass = 0, choice = 0;
+  char cPass[11];
+
+  printf("Please input your User ID: ");
+  scanf("%d", &nID);
+
+  for (i = 0; i < count; i++) 
+  {
+    if (nID == UserDetails[i].nID) // loops through array of UserDetails until
+                                   // a matching ID number is found
+    {
+      printf("Please input your password: "); // input for password prompts
+                                              // only if there is a match
+      scanf("%s", cPass);
+      for (j = 0; j < strlen(UserDetails[i].cPassword) && nPass == 0; j++) 
+      {
+        if (UserDetails[i].cPassword[j] != cPass[j]) 
+        {
+          nPass = 1; // if password character does not match
+        }
+      }
+      if (nPass == 1) // invalid password
+      {
+        printf("Invalid password! Press 1 to redirect to main menu: ");
+        while (choice == 0) 
+        {
+          scanf("%d", &choice);
+          displayEdge();
+          // if(choice==1)
+          //{
+          // system("cls");
+          //}
+        }
+      } 
+      else // correct password
+      {
+        displayEdge();
+        userMenu(UserDetails, i, count);
+      }
+    }
+  }
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  sortUser organizes the array of users in ascending order of user ID number
+  Precondition: The first user's ID number is greater than the ID number of the second user
+  @param *user1 is the structure of the first user to be sorted
+  @param *user2 is the structure of the second user to be sorted
+  @returns nothing due to the function being a void
+*/
+void 
+sortUser(struct User *user1, struct User *user2) 
+{
+  struct User temp;
+
+  temp = *user1;
+  *user1 = *user2;
+  *user2 = temp;
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  showUsers displays all users in a table format
+  Precondition: The number of users is non-negative
+  @param UserDetails[] is the array of structured users
+  @param usercount is the total number of users
+  @returns nothing due to the function being a void
+*/
+void showUsers(struct User UserDetails[], int usercount) 
+{
+  int i, j, x;
+  int next;
+
+  displayEdge();
+
+  printf("|      User ID       |      Password      |        Name        |     "
+         " Address       |    Phone Number    |\n");
+
+  for (i = 0; i < usercount - 1; i++) 
+  {
+    for (j = i + 1; j < usercount; j++) 
+    {
+      if (UserDetails[i].nID > UserDetails[j].nID)
+        sortUser(&UserDetails[i], &UserDetails[j]);
+    }
+  }
+  for (x = 0; x < usercount; x++) 
+  {
+    displayEdge();
+    printf("|%-20d|%-20s|%-20s|%-20s|%-20s|\n", UserDetails[x].nID,
+           UserDetails[x].cPassword, UserDetails[x].cName,
+           UserDetails[x].cAddress, UserDetails[x].cContact);
+  }
+
+  displayEdge();
+  /*
+  printf("\nPress 1 to return: ");
+  do {
+    scanf("%d", &next);
+
+    if (next == 1) {
+      // system("cls");
+      displayEdge();
+
+      adminMenu(UserDetails, usercount);
+    }
+
+  } while (next != 1);*/
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  showSellers displays the users that have items for sale
+  Precondition: Users displayed must have at least one item being sold
+  @param UserDetails[] is the array of structured users
+  @param usercount is the total number of users
+  @returns nothing 
+*/
+void 
+showSellers(struct User UserDetails[], int usercount) 
+{
+  int i;
+  int ret;
+  printf("+--------------------+--------------------+--------------------+---"
+         "-----"
+         "------------+--------------------+----------------------------+\n");
+  printf(
+      "|      User ID       |      Password      |        Name        |      "
+      "Address       |    Phone Number    |  Number Of Items For Sale  |\n");
+  for (i = 0; i < usercount; i++) 
+  {
+    if (UserDetails[i].items > 0) 
+    {
+      printf("+--------------------+--------------------+--------------------+-"
+             "-------------------+--------------------+------------------------"
+             "----+\n");
+      printf("|%-20d|%-20s|%-20s|%-20s|%-20s|%-28d|\n", UserDetails[i].nID,
+             UserDetails[i].cPassword, UserDetails[i].cName,
+             UserDetails[i].cAddress, UserDetails[i].cContact,
+             UserDetails[i].items);
+    }
+  }
+  printf("+--------------------+--------------------+--------------------+---"
+         "-----"
+         "------------+--------------------+----------------------------+\n");
+  /*printf("\nPress 1 to return: ");
+  do {
+    scanf("%d", &ret);
+
+    if (ret == 1) {
+      // system("cls");
+      displayEdge();
+
+      adminMenu(UserDetails, usercount);
+    }
+
+  } while (ret != 1);*/
+}
+
+/*
+contributed by Chua, Micole
+showTotalSales adds up the total costs in all receipts within a certain time period
+
+parameters:
+@param UserDetails[]=array of users
+@param count = total # of users
+@param receipt[]=array of transactions
+@param nReceipt = total number of transactions
+
+important variables:
+start & and = the boundaries of the time period
+in = if the receipt is within this time range
+runningSum = the output (total costs of all transactions)
+
+precondition: none
+@returns nothing 
+*/
+void 
+showTotalSales(struct User UserDetails[], int count,
+                    struct Transaction receipt[], int nReceipt) 
+{
+  //variable declaration and initialization
+  struct Date start, end;
+  char dump;
+  int x, y, in = 0; // if value is within time range
+  float runningSum = 0;
+
+  //getting duration
+  printf("What is the start of this duration: ");
+  scanf("%d%c%d%c%d%c", &start.nMonth, &dump, &start.nDay, &dump, &start.nYear,
+        &dump);
+  printf("What is the end of this duration: ");
+  scanf("%d%c%d%c%d%c", &end.nMonth, &dump, &end.nDay, &dump, &end.nYear,
+        &dump);
+//for all receipts
+  for (x = 0; x < nReceipt; x++) 
+  {
+    //if receipt is within time range
+    if (receipt[x].nDate.nYear > start.nYear &&
+        receipt[x].nDate.nYear <
+            end.nYear) /*year is after start year but before end year*/
+    {
+      in = 1;
+    } 
+    else if (receipt[x].nDate.nYear == start.nYear &&
+               receipt[x].nDate.nYear == end.nYear) 
+    {
+      if (receipt[x].nDate.nMonth > start.nMonth &&
+          receipt[x].nDate.nMonth < end.nMonth) 
+      {
+        in = 1;
+      } 
+      else if (receipt[x].nDate.nMonth == start.nMonth &&
+                   receipt[x].nDate.nMonth == end.nMonth) 
+      {
+          if (receipt[x].nDate.nDay >= start.nDay &&
+              receipt[x].nDate.nDay <= end.nDay) 
+          {
+            in = 1;
+          }
+      }
+    }
+    //if inside time range, add the total of the receipt to the running total
+    if (in) 
+    {
+      for (y = 0; y < 10; y++) 
+      {
+        runningSum +=
+            (receipt[x].sItems[y].fPrice * receipt[x].sItems[y].nQuantity);
+      }
+    }
+  }
+  printf("\n\n\t\tThe total sales are %.2f. \n\n", runningSum);
+}
+
+/*
+contributed by Chua, Micole
+showSellerSales shows the total earnings of all sellers with a transaction in the given time period
+
+parameters: 
+@param UserDetails[] = array of users
+@param count = total number of users
+@param receipt[] = array of transactions
+@param nReceipt = total number of transactions
+
+important variables: 
+@var start & end = indicates the boundaries of the time period
+@var in = if the value is within the time range, it is true(1), else it is false (0)
+@var sellerID[] = array of all sellers that have a transaction within the time range
+@var nSellers = number of sellers that have appeared in sellerID
+@var sums[] = array of total earnings of each seller
+@var add = variable to indicate if need to add seller into the sellerID array (true[1] if need to add, false[0] if not)
+
+precondition: none
+@returns nothing 
+*/
+void 
+showSellersSales(struct User UserDetails[], int count,
+                      struct Transaction receipt[], int nReceipt) 
+{
+
+//variable declaration and initialization
+  struct Date start, end;
+  char dump;
+  int x, y, z, in = 0, /*if value is within time range */
+      sellerID[nReceipt], nSellers = 0,
+               add = 0; // variable to indicate if need to add seller into array
+  float sums[nReceipt];
+
+  for (x = 0; x < nReceipt; x++) 
+  {
+    sellerID[x] = 0;
+    sums[x] = 0;
+  }
+//get the time boundaries
+  printf("What is the start of this duration: ");
+  scanf("%d%c%d%c%d%c", &start.nMonth, &dump, &start.nDay, &dump, &start.nYear,
+        &dump);
+  printf("What is the end of this duration: ");
+  scanf("%d%c%d%c%d%c", &end.nMonth, &dump, &end.nDay, &dump, &end.nYear,
+        &dump);
+//for all transactions
+  for (x = 0; x < nReceipt; x++) 
+  {
+    //if transaction is within the boundaries
+    if (receipt[x].nDate.nYear > start.nYear &&
+        receipt[x].nDate.nYear <
+            end.nYear) /*year is after start year but before end year*/
+    {
+      in = 1;
+    } 
+    else if (receipt[x].nDate.nYear == start.nYear &&
+               receipt[x].nDate.nYear == end.nYear)
+    {
+      if (receipt[x].nDate.nMonth > start.nMonth &&
+          receipt[x].nDate.nMonth < end.nMonth) 
+      {
+        in = 1;
+      } 
+      else if (receipt[x].nDate.nMonth == start.nMonth &&
+                 receipt[x].nDate.nMonth == end.nMonth) 
+      {
+        if (receipt[x].nDate.nDay >= start.nDay &&
+            receipt[x].nDate.nDay <= end.nDay) 
+        {
+          in = 1;
+        }
+      }
+    }
+//if transaction is within the time range, check if it has appeared in the array before
+    //if not add to array of sellers
+    //add the total amount in the transaction to the appropriate index
+    if (in) 
+    {
+      for (y = 0; y < nReceipt; y++) 
+      {
+      	 add = 0;
+        for (x = 0; x < nSellers || x == 0; x++)
+        {
+          if (receipt[y].sItems[0].nSellerID == sellerID[x]) 
+          {
+
+            for (z = 0; z < receipt[y].nItems; z++) 
+            {
+              sums[x] +=
+                  receipt[y].sItems[z].nQuantity * receipt[y].sItems[z].fPrice;
+            }
+			       add = 1;
+          } 
+        } 
+          if (add ==0) 
+          {
+            sellerID[nSellers] = receipt[y].sItems[0].nSellerID;
+            for (z = 0; z < 10; z++) 
+            {
+              sums[nSellers] +=
+                  receipt[y].sItems[z].nQuantity * receipt[y].sItems[z].fPrice;
+            }
+            nSellers++;
+          }
+	    }
+	 }
+//output all sellers
+    printf("\n|   Seller ID   |    Seller  Name    | Total transactions in "
+           "duration |\n");
+    for (x = 0; x < nSellers; x++) 
+    {
+      for (y = 0; y < count; y++) 
+      {
+        if (sellerID[x] == UserDetails[y].nID) 
+        {
+          printf("|%15d|%21s|%32.2f|\n", sellerID[x], UserDetails[y].cName,
+                 sums[x]);
+        }
+      }
+    }
+  }
+}
+
+/*
+contributed by Chua, Micole
+showShopaholics shows the total spendings of all buyers with a transaction in the given time period
+
+parameters: 
+@param UserDetails[] = array of users
+@param count = total number of users
+@param receipt[] = array of transactions
+@param nReceipt = total number of transactions
+
+important variables: 
+@var start & end = indicates the boundaries of the time period
+@var in = if the value is within the time range, it is true(1), else it is false (0)
+@var buyerID[] = array of all buyers that have a transaction within the time range
+@var nSellersBuyers = number of buyers that have appeared in buyerID
+@var sums[] = array of total earnings of each seller
+@var add = variable to indicate if need to add seller into the buyerID array (true[1] if need to add, false[0] if not)
+
+precondition: none
+@returns nothing 
+*/
+void 
+showShopaholics(struct User UserDetails[], int count,
+                     struct Transaction receipt[], int nReceipt) 
+{
+//variable declaration and initialization
+  struct Date start, end;
+  char dump;
+  int x, y, z, in = 0, /*if value is within time range */
+      buyerID[nReceipt], nBuyers = 0,
+               add = 0; // variable to indicate if need to add seller into array
+  float sums[nReceipt];
+
+  for (x = 0; x < nReceipt; x++) 
+  {
+    buyerID[x] = 0;
+    sums[x] = 0;
+  }
+  //get dates
+  printf("What is the start of this duration: ");
+  scanf("%d%c%d%c%d%c", &start.nMonth, &dump, &start.nDay, &dump, &start.nYear,
+        &dump);
+  printf("What is the end of this duration: ");
+  scanf("%d%c%d%c%d%c", &end.nMonth, &dump, &end.nDay, &dump, &end.nYear,
+        &dump);
+//for all receipts that are in the given time period
+  for (x = 0; x < nReceipt; x++) 
+  {
+    if (receipt[x].nDate.nYear > start.nYear &&
+        receipt[x].nDate.nYear <
+            end.nYear) /*year is after start year but before end year*/
+    {
+      in = 1;
+    } 
+    else if (receipt[x].nDate.nYear == start.nYear &&
+               receipt[x].nDate.nYear == end.nYear) 
+    {
+      if (receipt[x].nDate.nMonth > start.nMonth &&
+          receipt[x].nDate.nMonth < end.nMonth) {
+        in = 1;
+      } 
+      else if (receipt[x].nDate.nMonth == start.nMonth &&
+                 receipt[x].nDate.nMonth == end.nMonth) 
+      {
+        if (receipt[x].nDate.nDay >= start.nDay &&
+            receipt[x].nDate.nDay <= end.nDay) 
+        {
+          in = 1;
+        }
+      }
+    }
+//if the buyer is not in buyerID, add them to the array 
+    // add the transaction total to the appropriate index of sums correcsponding to the index in buyerID
+    if (in) 
+    {
+      for (y = 0; y < nReceipt; y++) 
+      {
+	      add = 0;
+        for (x = 0; x < nBuyers || x == 0; x++) 
+        {
+          
+          if (receipt[y].nBuyerID == buyerID[x]) 
+          {
+
+            for (z = 0; z < 10; z++) 
+            {
+              sums[x] +=
+                  receipt[y].sItems[z].nQuantity * receipt[y].sItems[z].fPrice;
+            }
+            add=1;
+          } 
+        }
+
+        if (add==0) 
+        {
+          buyerID[nBuyers] = receipt[y].nBuyerID;
+          for (z = 0; z < 10; z++) 
+          {
+            sums[nBuyers] +=
+                receipt[y].sItems[z].nQuantity * receipt[y].sItems[z].fPrice;
+          }
+          nBuyers++;
+        }
+      }
+    }
+
+    printf("\n|   Buyer ID   |     Buyer Name     | Total purchases in duration |\n");
+    for (x = 0; x < nBuyers; x++) 
+    {
+      for (y = 0; y < count; y++) 
+      {
+        if (buyerID[x] == UserDetails[y].nID) 
+        {
+          printf("|%14d|%20s|%29.2f|\n", buyerID[x], UserDetails[y].cName,
+                 sums[x]);
+        }
+      }
+    }
+  }
+}
+
+/*
+contributed by Chua, Micole and Dimaculangan, Renzel
+adminMenu is the menu where in the user can look at the summaries of transactions and the active products and sellers
+
+parameters: 
+@param UserDetails[] = array of users
+@param usercount = total number of users
+
+important variables:
+@var nReceipt = total number of transactions
+@var receipt[] = array of transactions
+
+precondition: none
+@returns nothing 
+*/
+void adminMenu(struct User UserDetails[], int usercount) 
+{
+  //variable declaration and initialization
+ int nAdminChoice, nReceipt=0;
+
+  FILE *fp;
+  if((fp=fopen("Transactions.txt", "r"))!=NULL)
+  {
+  	fscanf(fp, "%d", &nReceipt);
+  	fclose(fp);
+  } 
+  else 
+    printf("\n\nUnable to open Transactions.txt. \n\n");
+  
+  struct Transaction receipt[nReceipt];
+  scanTransactionFile(UserDetails, receipt);
+  do
+  {
+  
+    printf("\t\t\t\t\t----------Admin Menu----------\n\n");
+    printf("\t\t1. Show all users\n\n\t\t2.Show all sellers\n\n\t\t3. Show Total "
+           "Sales in Given Duration\n\n");
+    printf("\t\t4. Show Sellers Sales\n\n\t\t5. Show Shopaholics\n\n\t\t6. Back "
+           "to Main Menu\n\n");
+  
+    nAdminChoice = -1;
+    printf("\t\tSelect an action:");
+    do 
+    {
+      scanf("%d", &nAdminChoice);
+    } while (nAdminChoice < 1 && nAdminChoice > 6);
+  
+    switch (nAdminChoice) 
+    {
+      case 1:
+        // system("cls");
+        //show the details of all users
+        showUsers(UserDetails, usercount);
+        nAdminChoice = -1;
+        break;
+      case 2:
+        // system("cls");
+        //show the details of all sellers 
+        displayEdge();
+        showSellers(UserDetails, usercount);
+    
+        break;
+      case 3:
+        // show total sales in given duration
+        showTotalSales(UserDetails, usercount, receipt, nReceipt);
+        break;
+      case 4:
+        // show sales of all seller with transaction in given duration
+        showSellersSales(UserDetails, usercount, receipt, nReceipt);
+        break;
+      case 5:
+        // show total purchases of all buyers with transaction in given duration
+        showShopaholics(UserDetails, usercount, receipt, nReceipt);
+        break;
+      case 6:
+        // system("cls");
+        // main menu
+        break;
+    }
+  }while(nAdminChoice!=6);
+}
+
+/*
+  Contributed by: Dimaculangan, Renzel
+  adminLogIn asks the admin for the password and redirects to the admin menu once successful
+  Precondition: none
+  @param UserDetails[] is the array of structured users
+  @param usercount is the total number of users
+  @returns nothing due to the function being a void
+*/
+void 
+adminLogIn(struct User UserDetails[], int usercount) 
+{
+  char cInput[11];
+  char cPassword[11] = "prog";
+  int i, check = 0;
+
+  int nAdminChoice;
+  int back = 0;
+
+  printf("Input password: ");
+  scanf("%s", cInput);
+
+  if (strcmp(cInput, cPassword) != 0)
+    check = 1;
+
+  if (check == 1) // invalid password
+  {
+    printf("Invalid password! Press 1 to return to the main menu: ");
+    while (back != 1) 
+    {
+      scanf("%d", &back);
+      displayEdge();
+      // if(back==1)
+      // system("cls");
+    }
+  } 
+  else if (check == 0) 
+  {
+    displayEdge();
+    adminMenu(UserDetails, usercount);
+  }
+}
+
+int main() 
+{
+  struct User UserDetails[USERCOUNT];
+  int i, j, x;
+  int nChoice, nAdmin, nPass;
+  int valid = 0;
+  char cDump;
+
+  int totalitems = 0;
+
+  i = initializeUserFile(UserDetails); // number of users
+
+  for (x = 0; x < i; x++) 
+  {
+    UserDetails[x].items = 0;
+  }
+
+  j = initializeItemFile(UserDetails, i);
+
+  while (nChoice != 4) 
+  {
+    printf("\t\t----------Welcome to the Online Shopping Assistance Service "
+           "(OSAS)!----------\n\n");
+    printf("                          1 - Register new user\n\n");
+    printf("                          2 - User menu\n\n");
+    printf("                          3 - Admin menu\n\n");
+    printf("                          4 - Exit\n\n");
+
+    int nInput = 0;
+    printf("                          Please select an option: ");
+    while (nInput == 0) 
+    {
+      scanf("%d%c", &nChoice, &cDump);
+      if (nChoice > 0 && nChoice < 5)
+        nInput = 1;
+      else
+        printf("Invalid choice! Please try again.\n");
+    }
+
+    switch (nChoice) 
+    {
+    case 1:
+      // system("cls");
+      displayEdge();
+      RegisterUser(UserDetails, i);
+      i++;
+
+      break;
+
+    case 2:
+      // system("cls");
+      displayEdge();
+      userLogIn(UserDetails, i);
+
+      break;
+
+    case 3:
+      // system("cls");
+      displayEdge();
+      adminLogIn(UserDetails, i);
+      break;
+
+    case 4:
+      printf("\n\t\t----------Thank you for using OSAS!----------\n\n");
+      makeUserTextFile(UserDetails, i); // rewrites Users.txt
+      makeItemTextFile(UserDetails, i); // rewrites Items.txt
+      break;
+    }
+  }
+
+  return 0;
+}
